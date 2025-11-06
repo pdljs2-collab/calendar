@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kalender Kegiatan Bulanan</title>
+    <!-- Memuat Tailwind CSS untuk styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Memuat font Inter untuk tampilan yang bersih -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Menggunakan font Inter sebagai default */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Style kustom untuk tag kegiatan agar warna dan teks lebih mudah diatur */
+        .kegiatan-tag {
+            padding: 2px 6px; /* Padding disesuaikan agar lebih ringkas di layar kecil */
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin-top: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            cursor: pointer; /* Menambahkan cursor pointer untuk menandakan bisa di-klik */
+            transition: transform 0.2s;
+        }
+        .kegiatan-tag:hover {
+            transform: scale(1.05);
+        }
+        /* Skema warna untuk setiap wilayah/kategori kegiatan */
+        .kegiatan-pusat {
+            background-color: #dc2626; /* Red-600 */
+            color: #ffffff;
+        }
+        .kegiatan-daerah {
+            background-color: #2563eb; /* Blue-600 */
+            color: #ffffff;
+        }
+        .kegiatan-desa {
+            background-color: #eab308; /* Yellow-500 */
+            color: #ffffff;
+        }
+        .kegiatan-kelompok {
+            background-color: #15803d; /* Green-700 */
+            color: #ffffff;
+        }
+        /* Scrollbar styling untuk daftar kegiatan di popup */
+        #daily-events-list::-webkit-scrollbar, #event-modal-content::-webkit-scrollbar {
+            width: 8px;
+        }
+        #daily-events-list::-webkit-scrollbar-track, #event-modal-content::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        #daily-events-list::-webkit-scrollbar-thumb, #event-modal-content::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+        #daily-events-list::-webkit-scrollbar-thumb:hover, #event-modal-content::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* Style untuk tombol hari dalam seminggu di modal pengulangan */
+        .weekday-btn {
+            transition: all 0.2s;
+        }
+        .weekday-btn.selected {
+            background-color: #3b82f6; /* bg-blue-600 */
+            color: white;
+            border-color: #3b82f6; /* border-blue-600 */
+        }
+        
+        /* Style khusus untuk mode cetak */
+        @page {
+            size: A4 landscape;
+            margin: 1cm;
+        }
+
+        @media print {
+            body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+                margin: 0;
+                padding: 0;
+            }
+            .print-hidden {
+                display: none !important;
+            }
+            #print-legend {
+                display: block !important;
+            }
+            #calendar-container {
+                height: 100vh;
+                width: 100vw;
+            }
+            .container {
+                padding: 0 !important;
+                margin: 0 !important;
+                max-width: 100% !important;
+                height: 100%;
+                display: flex;
+                flex-direction: column;
+            }
+            .justify-between.mb-6 {
+                margin-bottom: 0.5rem !important;
+            }
+            h1.text-2xl {
+                font-size: 1.25rem !important;
+            }
+            h2#month-year {
+                font-size: 1.1rem !important;
+                padding: 0.25rem;
+                width: auto !important;
+                text-align: right !important;
+            }
+            .bg-white.shadow-lg {
+                box-shadow: none !important;
+                border: 1px solid #ccc !important;
+                flex-grow: 1;
+                display: flex;
+                flex-direction: column;
+                padding: 0.5rem !important;
+            }
+            #calendar-grid {
+                flex-grow: 1;
+                gap: 1px !important;
+            }
+            #calendar-grid > div {
+                border: 1px solid #000 !important;
+                padding: 2px !important;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
+            #calendar-grid > div > span { /* Date number */
+                font-size: 9pt;
+                margin-bottom: 2px;
+            }
+            .kegiatan-tag {
+                color: #fff !important;
+                font-size: 7pt !important;
+                padding: 1px 4px !important;
+                margin-top: 2px !important;
+            }
+            .kegiatan-pusat { background-color: #dc2626 !important; }
+            .kegiatan-daerah { background-color: #2563eb !important; }
+            .kegiatan-desa { background-color: #eab308 !important; }
+            .kegiatan-kelompok { background-color: #15803d !important; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <!-- Container Halaman Login -->
+    <div id="login-container" class="min-h-screen flex items-center justify-center">
+        <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-sm">
+            <h1 class="text-2xl font-bold text-center text-gray-700 mb-6">Login Kalender</h1>
+            <form id="login-form">
+                <div class="mb-4">
+                    <label for="email" class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <input type="email" id="email" name="email" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="nama@email.com" required>
+                </div>
+                <div class="mb-6">
+                    <label for="password" class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                    <input type="password" id="password" name="password" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="********" required>
+                </div>
+                 <p id="login-error" class="text-red-500 text-sm text-center mb-4 hidden"></p>
+                <div>
+                    <button type="submit" class="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+                        Masuk / Daftar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Container Aplikasi Kalender (disembunyikan secara default) -->
+    <div id="calendar-container" class="hidden">
+        <div class="container mx-auto p-4 sm:p-6 md:p-8">
+            <!-- Header: Judul, Logout, dan Navigasi Bulan -->
+            <div class="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
+                <h1 class="text-2xl sm:text-3xl font-bold text-gray-700">Kalender Kegiatan</h1>
+                <div class="flex flex-col sm:flex-row items-center gap-4">
+                    <button id="logout-btn" class="print-hidden text-sm font-medium text-gray-600 hover:text-blue-600">Logout</button>
+                    <!-- Kontainer Filter Wilayah diubah menjadi Dropdown -->
+                    <div class="relative print-hidden">
+                        <select id="category-filter-dropdown" class="block w-full sm:w-48 appearance-none rounded-md border border-gray-300 bg-white px-4 py-2 pr-8 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                            <option value="semua">Semua Wilayah</option>
+                            <option value="pusat">Pusat</option>
+                            <option value="daerah">Daerah</option>
+                            <option value="desa">Desa</option>
+                            <option value="kelompok">Kelompok</option>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                            <svg class="h-4 w-4 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                        </div>
+                    </div>
+                    <!-- Navigasi Bulan -->
+                    <div class="flex items-center space-x-2 bg-white p-2 rounded-lg shadow-sm">
+                        <button id="prev-month" class="p-2 rounded-md hover:bg-gray-200 transition-colors print-hidden">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+                        </button>
+                        <h2 id="month-year" class="text-lg sm:text-xl font-semibold w-36 sm:w-48 text-center"></h2>
+                        <button id="next-month" class="p-2 rounded-md hover:bg-gray-200 transition-colors print-hidden">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tombol Admin (Hapus, Ekspor, Impor) dan Cetak -->
+            <div class="flex flex-col sm:flex-row flex-wrap gap-2 justify-end mb-4 print-hidden">
+                <label for="import-file" id="import-label" class="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 text-sm font-medium shadow-sm cursor-pointer text-center hidden">
+                    Impor dari JSON
+                </label>
+                <input type="file" id="import-file" class="hidden" accept=".json">
+                <button id="export-btn" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm font-medium shadow-sm hidden">Ekspor ke JSON</button>
+                <button id="delete-month-btn" class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 text-sm font-medium shadow-sm hidden">Hapus Kegiatan Bulan Ini</button>
+                <button id="print-btn" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 text-sm font-medium shadow-sm">Cetak</button>
+            </div>
+
+            <!-- Kontainer Kalender -->
+            <div class="bg-white rounded-lg shadow-lg p-2 sm:p-4">
+                <!-- Header Hari (Minggu - Sabtu) -->
+                <div class="grid grid-cols-7 gap-2 text-center font-semibold text-gray-600 mb-2 text-xs sm:text-sm">
+                    <div>Min</div>
+                    <div>Sen</div>
+                    <div>Sel</div>
+                    <div>Rab</div>
+                    <div>Kam</div>
+                    <div>Jum</div>
+                    <div>Sab</div>
+                </div>
+                <!-- Kotak-kotak Tanggal -->
+                <div id="calendar-grid" class="grid grid-cols-7 gap-1 sm:gap-2">
+                    <!-- Tanggal akan di-generate oleh JavaScript -->
+                </div>
+            </div>
+            
+            <!-- Keterangan Warna untuk Halaman Cetak -->
+            <div class="hidden pt-4" id="print-legend">
+                <h4 class="font-bold text-sm mb-2">Keterangan Warna:</h4>
+                <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                    <div class="flex items-center">
+                        <span class="w-4 h-4 inline-block mr-2 kegiatan-pusat border border-gray-400"></span>
+                        <span>Pusat</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="w-4 h-4 inline-block mr-2 kegiatan-daerah border border-gray-400"></span>
+                        <span>Daerah</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="w-4 h-4 inline-block mr-2 kegiatan-desa border border-gray-400"></span>
+                        <span>Desa</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="w-4 h-4 inline-block mr-2 kegiatan-kelompok border border-gray-400"></span>
+                        <span>Kelompok</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tombol Tambah Kegiatan (Floating Action Button) -->
+        <button id="add-event-btn" class="fixed bottom-4 right-4 sm:bottom-8 sm:right-8 bg-blue-600 text-white p-4 rounded-full shadow-lg hover:bg-blue-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 z-40 print-hidden hidden">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+        </button>
+    </div>
+
+
+    <!-- Modal untuk Daftar Kegiatan Harian -->
+    <div id="daily-events-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-md transform transition-all scale-95 opacity-0 flex flex-col" id="daily-modal-content">
+            <div class="flex items-center justify-between p-4 border-b">
+                <h3 id="daily-events-title" class="text-lg font-semibold">Kegiatan</h3>
+                <button id="close-daily-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl leading-none">&times;</button>
+            </div>
+            <div id="daily-events-list" class="p-4 space-y-3 max-h-80 overflow-y-auto">
+                <!-- Daftar kegiatan harian akan di-generate oleh JavaScript -->
+            </div>
+            <div class="p-4 border-t mt-auto flex gap-2">
+                 <button id="copy-all-btn" class="w-full bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 hidden">Salin Semua</button>
+                 <button id="daily-add-event-btn" class="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 hidden">Tambah Kegiatan Baru</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Modal untuk Tambah/Edit Kegiatan -->
+    <div id="event-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden z-50">
+        <div id="event-modal-content" class="bg-white rounded-lg shadow-2xl p-6 w-full max-w-md transform transition-all scale-95 opacity-0 overflow-y-auto max-h-[90vh]">
+            <div class="flex items-center justify-between mb-4">
+                <h3 id="modal-title" class="text-xl font-semibold">Tambah Kegiatan Baru</h3>
+                <button id="close-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl leading-none">&times;</button>
+            </div>
+            <form id="event-form">
+                <input type="hidden" id="event-id">
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="event-date" class="block text-sm font-medium text-gray-700">Tanggal</label>
+                            <input type="date" id="event-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required>
+                        </div>
+                        <div>
+                            <label for="event-time" class="block text-sm font-medium text-gray-700">Jam</label>
+                            <input type="time" id="event-time" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+                    </div>
+                    <div>
+                        <label for="event-description" class="block text-sm font-medium text-gray-700">Nama Kegiatan</label>
+                        <input type="text" id="event-description" placeholder="Contoh: Rapat Koordinasi" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required>
+                    </div>
+                    <div>
+                        <label for="event-category" class="block text-sm font-medium text-gray-700">Wilayah</label>
+                        <select id="event-category" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required>
+                            <option value="pusat">Pusat</option>
+                            <option value="daerah">Daerah</option>
+                            <option value="desa">Desa</option>
+                            <option value="kelompok">Kelompok</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="event-details" class="block text-sm font-medium text-gray-700">Deskripsi Kegiatan</label>
+                        <textarea id="event-details" placeholder="Detail acara, agenda, dll." class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" rows="3"></textarea>
+                    </div>
+                    <div>
+                        <label for="event-participants" class="block text-sm font-medium text-gray-700">Peserta</label>
+                        <textarea id="event-participants" placeholder="Contoh: Tim A, Tim B" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-between items-center">
+                    <div>
+                        <button type="button" id="delete-event-btn" class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 hidden">Hapus</button>
+                        <button type="button" id="copy-event-btn" class="bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 hidden ml-2">Salin</button>
+                    </div>
+                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Konfirmasi Hapus Bulan Berdasarkan Wilayah -->
+    <div id="delete-month-confirm-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden z-[70]">
+        <div class="bg-white rounded-lg shadow-2xl p-6 w-full max-w-sm">
+            <h3 class="text-lg font-semibold mb-2">Hapus Kegiatan Bulan Ini</h3>
+            <p class="text-sm text-gray-600 mb-4">Pilih wilayah kegiatan yang ingin Anda hapus dari bulan ini. Tindakan ini tidak dapat dibatalkan.</p>
+            <div id="delete-month-category-options" class="space-y-2">
+                <button data-category="semua" class="w-full text-left bg-red-100 hover:bg-red-200 text-red-800 font-semibold px-4 py-2 rounded-md text-sm">Hapus Semua Wilayah</button>
+                <button data-category="pusat" class="w-full text-left bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-md text-sm">Hapus Wilayah Pusat Saja</button>
+                <button data-category="daerah" class="w-full text-left bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-md text-sm">Hapus Wilayah Daerah Saja</button>
+                <button data-category="desa" class="w-full text-left bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-md text-sm">Hapus Wilayah Desa Saja</button>
+                <button data-category="kelompok" class="w-full text-left bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-md text-sm">Hapus Wilayah Kelompok Saja</button>
+            </div>
+            <div class="mt-4 text-right">
+                <button id="cancel-delete-month-btn" class="text-blue-600 hover:underline text-sm font-medium">Batal</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal Salin Kegiatan Harian -->
+    <div id="copy-day-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden z-[60]">
+        <div class="bg-white rounded-lg shadow-2xl p-6 w-full max-w-sm">
+            <h3 class="text-lg font-semibold mb-4">Salin Semua Kegiatan</h3>
+            <p class="text-sm text-gray-600 mb-4">Pilih tanggal tujuan untuk menyalin semua kegiatan dari <strong id="copy-source-date-display"></strong>.</p>
+            <div>
+                <label for="copy-dest-date" class="block text-sm font-medium text-gray-700">Tanggal Tujuan</label>
+                <input type="date" id="copy-dest-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required>
+            </div>
+            <div class="mt-6 flex justify-end gap-3">
+                <button type="button" id="cancel-copy-day-btn" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-300">Batal</button>
+                <button type="button" id="save-copy-day-btn" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Simpan Salinan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
+        import { 
+            getAuth, 
+            onAuthStateChanged, 
+            signInWithEmailAndPassword,
+            createUserWithEmailAndPassword,
+            signOut
+        } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
+        import { 
+            getFirestore,
+            doc,
+            getDoc,
+            setDoc
+        } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+
+        // Konfigurasi Firebase Anda
+        const firebaseConfig = {
+          apiKey: "AIzaSyDcnjl_p0Nrcs17r5uGdWQO0lACI-92spA",
+          authDomain: "kalender-6cf47.firebaseapp.com",
+          projectId: "kalender-6cf47",
+          storageBucket: "kalender-6cf47.firebasestorage.app",
+          messagingSenderId: "210724064776",
+          appId: "1:210724064776:web:468fef63fd5af99f420bbd"
+        };
+
+        // Inisialisasi Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // --- Variabel Global untuk Aplikasi ---
+        let calendarInitialized = false;
+        let userRole = 'viewer'; // Default role
+        const ADMIN_EMAIL = "admin@kalender.com";
+
+        // --- LOGIKA OTENTIKASI ---
+        const loginContainer = document.getElementById('login-container');
+        const calendarContainer = document.getElementById('calendar-container');
+        const loginForm = document.getElementById('login-form');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const loginError = document.getElementById('login-error');
+        const logoutBtn = document.getElementById('logout-btn');
+
+        // Fungsi untuk menangani login dan setup role
+        async function handleUserLogin(user) {
+            if (!user) {
+                userRole = 'viewer';
+                loginContainer.classList.remove('hidden');
+                calendarContainer.classList.add('hidden');
+                calendarInitialized = false; 
+                return;
+            }
+
+            const userDocRef = doc(db, "users", user.uid);
+            let userDocSnap = await getDoc(userDocRef);
+
+            // Set role admin jika belum ada di DB
+            if (!userDocSnap.exists() && user.email === ADMIN_EMAIL) {
+                await setDoc(userDocRef, { role: 'admin' });
+                userDocSnap = await getDoc(userDocRef); // Baca lagi setelah dibuat
+            }
+
+            if (userDocSnap.exists() && userDocSnap.data().role === 'admin') {
+                userRole = 'admin';
+            } else {
+                userRole = 'viewer';
+            }
+
+            // Tampilkan UI berdasarkan role
+            loginContainer.classList.add('hidden');
+            calendarContainer.classList.remove('hidden');
+
+            if (userRole === 'admin') {
+                document.getElementById('delete-month-btn').classList.remove('hidden');
+                document.getElementById('add-event-btn').classList.remove('hidden');
+                document.getElementById('export-btn').classList.remove('hidden');
+                document.getElementById('import-label').classList.remove('hidden');
+            } else {
+                document.getElementById('delete-month-btn').classList.add('hidden');
+                document.getElementById('add-event-btn').classList.add('hidden');
+                document.getElementById('export-btn').classList.add('hidden');
+                document.getElementById('import-label').classList.add('hidden');
+            }
+
+            if (!calendarInitialized) {
+                initializeCalendar();
+                calendarInitialized = true;
+            }
+        }
+
+
+        onAuthStateChanged(auth, handleUserLogin);
+
+        loginForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const email = emailInput.value;
+            const password = passwordInput.value;
+            loginError.classList.add('hidden');
+
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+            } catch (error) {
+                if (error.code === 'auth/user-not-found') {
+                    try {
+                        await createUserWithEmailAndPassword(auth, email, password);
+                    } catch (createError) {
+                        loginError.textContent = "Gagal membuat akun: " + createError.message;
+                        loginError.classList.remove('hidden');
+                    }
+                } else {
+                    loginError.textContent = "Gagal masuk: " + error.message;
+                    loginError.classList.remove('hidden');
+                }
+            }
+        });
+
+        logoutBtn.addEventListener('click', async () => {
+            await signOut(auth);
+            // onAuthStateChanged akan menangani sisanya
+        });
+
+
+        // --- FUNGSI INISIALISASI KALENDER ---
+        async function initializeCalendar() {
+            // --- VARIABEL GLOBAL & STATE ---
+            let currentDate = new Date();
+            let events = {};
+            let activeCategoryFilter = 'semua';
+            let sourceDateForCopy = null;
+            let eventsToCopy = [];
+
+            // --- FUNGSI UNTUK MEMUAT DAN MENYIMPAN DATA DARI/KE FIRESTORE ---
+            async function loadDataFromFirestore() {
+                const docRef = doc(db, "calendars", "shared");
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    events = data.events || {};
+                } else {
+                    events = {};
+                }
+                renderCalendar();
+            }
+
+            async function saveDataToFirestore() {
+                if (userRole !== 'admin') return;
+                const docRef = doc(db, "calendars", "shared");
+                const dataToSave = { events };
+                await setDoc(docRef, dataToSave);
+            }
+
+            // --- FUNGSI EKSPOR & IMPOR ---
+            function exportDataToJson() {
+                if (userRole !== 'admin') {
+                    console.error("Hanya admin yang bisa mengekspor data.");
+                    return;
+                }
+                const dataToSave = { events };
+                const dataStr = JSON.stringify(dataToSave, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(dataBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `kalender-kegiatan-${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }
+
+            function importDataFromJson(event) {
+                if (userRole !== 'admin') {
+                    console.error("Hanya admin yang bisa mengimpor data.");
+                    return;
+                }
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = async function(e) {
+                    try {
+                        const importedData = JSON.parse(e.target.result);
+                        if (importedData.hasOwnProperty('events')) {
+                            events = importedData.events;
+                            await saveDataToFirestore();
+                            renderCalendar();
+                            alert('Data berhasil diimpor dan disimpan ke database!');
+                        } else {
+                            alert('Format file JSON tidak valid atau data tidak lengkap.');
+                        }
+                    } catch (error) {
+                        console.error("Gagal membaca file:", error);
+                        alert('Gagal membaca file. Pastikan file dalam format JSON yang benar.');
+                    } finally {
+                        event.target.value = null; // Reset input file
+                    }
+                };
+                reader.readAsText(file);
+            }
+
+            // --- ELEMEN DOM ---
+            const calendarGrid = document.getElementById('calendar-grid');
+            const monthYearDisplay = document.getElementById('month-year');
+            const prevMonthBtn = document.getElementById('prev-month');
+            const nextMonthBtn = document.getElementById('next-month');
+            const addEventBtn = document.getElementById('add-event-btn');
+            const deleteMonthBtn = document.getElementById('delete-month-btn');
+            const printBtn = document.getElementById('print-btn');
+            const exportBtn = document.getElementById('export-btn');
+            const importFile = document.getElementById('import-file');
+            const categoryFilterDropdown = document.getElementById('category-filter-dropdown');
+
+            // DOM Modal Tambah/Edit
+            const eventModal = document.getElementById('event-modal');
+            const eventModalContent = document.getElementById('event-modal-content');
+            const closeModalBtn = document.getElementById('close-modal-btn');
+            const eventForm = document.getElementById('event-form');
+            const modalTitle = document.getElementById('modal-title');
+            const eventIdInput = document.getElementById('event-id');
+            const eventDateInput = document.getElementById('event-date');
+            const eventTimeInput = document.getElementById('event-time');
+            const eventDescriptionInput = document.getElementById('event-description');
+            const eventCategoryInput = document.getElementById('event-category');
+            const eventDetailsInput = document.getElementById('event-details');
+            const eventParticipantsInput = document.getElementById('event-participants');
+            const deleteEventBtn = document.getElementById('delete-event-btn');
+            const copyEventBtn = document.getElementById('copy-event-btn');
+
+            // DOM Modal Daftar Kegiatan Harian
+            const dailyEventsModal = document.getElementById('daily-events-modal');
+            const dailyModalContent = document.getElementById('daily-modal-content');
+            const closeDailyModalBtn = document.getElementById('close-daily-modal-btn');
+            const dailyEventsTitle = document.getElementById('daily-events-title');
+            const dailyEventsList = document.getElementById('daily-events-list');
+            const dailyAddEventBtn = document.getElementById('daily-add-event-btn');
+            const copyAllBtn = document.getElementById('copy-all-btn');
+
+            // DOM Modal Salin Harian
+            const copyDayModal = document.getElementById('copy-day-modal');
+            const copySourceDateDisplay = document.getElementById('copy-source-date-display');
+            const copyDestDateInput = document.getElementById('copy-dest-date');
+            const cancelCopyDayBtn = document.getElementById('cancel-copy-day-btn');
+            const saveCopyDayBtn = document.getElementById('save-copy-day-btn');
+            
+            // DOM Modal Hapus Bulan
+            const deleteMonthConfirmModal = document.getElementById('delete-month-confirm-modal');
+            const cancelDeleteMonthBtn = document.getElementById('cancel-delete-month-btn');
+            const deleteMonthCategoryOptions = document.getElementById('delete-month-category-options');
+
+            // --- FUNGSI UTAMA UNTUK MERENDER KALENDER ---
+            function renderCalendar() {
+                calendarGrid.innerHTML = '';
+                const year = currentDate.getFullYear();
+                const month = currentDate.getMonth();
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                monthYearDisplay.textContent = `${currentDate.toLocaleDateString('id-ID', { month: 'long' })} ${year}`;
+                const startingDay = new Date(year, month, 1).getDay();
+
+                for (let i = 0; i < startingDay; i++) {
+                    const emptyCell = document.createElement('div');
+                    emptyCell.className = 'border rounded-md bg-gray-50';
+                    calendarGrid.appendChild(emptyCell);
+                }
+
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const dateCell = document.createElement('div');
+                    dateCell.className = 'border rounded-md p-1 sm:p-2 min-h-[100px] sm:min-h-[120px] flex flex-col transition-colors hover:bg-gray-100 relative cursor-pointer';
+                    
+                    const dateNumber = document.createElement('span');
+                    dateNumber.textContent = day;
+                    dateNumber.className = 'text-sm font-medium';
+                    const today = new Date();
+                    if (year === today.getFullYear() && month === today.getMonth() && day === today.getDate()) {
+                        dateNumber.classList.add('bg-blue-600', 'text-white', 'rounded-full', 'w-6', 'h-6', 'flex', 'items-center', 'justify-center');
+                    } else {
+                        dateNumber.classList.add('text-gray-600');
+                    }
+                    dateCell.appendChild(dateNumber);
+                    
+                    const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    let allDailyEvents = events[dateString] ? [...events[dateString]] : [];
+
+                    const dailyEvents = (activeCategoryFilter === 'semua')
+                        ? allDailyEvents
+                        : allDailyEvents.filter(event => event.category === activeCategoryFilter);
+
+                    if (dailyEvents.length > 0) {
+                        dailyEvents.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+                        const eventsContainer = document.createElement('div');
+                        eventsContainer.className = 'mt-1 flex-grow overflow-y-auto pointer-events-none';
+                        dailyEvents.forEach(event => {
+                            const eventTag = document.createElement('div');
+                            const timeDisplay = event.time ? `<strong>${event.time}</strong>` : '';
+                            eventTag.innerHTML = `${timeDisplay} ${event.description}`;
+                            eventTag.className = `kegiatan-tag kegiatan-${event.category}`;
+                            eventsContainer.appendChild(eventTag);
+                        });
+                        dateCell.appendChild(eventsContainer);
+                    }
+                    dateCell.addEventListener('click', () => openDailyEventsModal(dateString, allDailyEvents));
+                    calendarGrid.appendChild(dateCell);
+                }
+            }
+            
+            // --- FUNGSI MODAL ---
+            function openModal(dateString, event = null) {
+                eventForm.reset();
+                eventDateInput.value = dateString;
+                eventIdInput.dataset.originalDate = dateString;
+                const isAdmin = userRole === 'admin';
+
+                // Reset button visibility
+                copyEventBtn.classList.add('hidden');
+
+                if (event) {
+                    modalTitle.textContent = 'Detail Kegiatan';
+                    if (isAdmin) {
+                        modalTitle.textContent = 'Edit Kegiatan';
+                        copyEventBtn.classList.remove('hidden');
+                    }
+
+                    eventIdInput.value = event.id;
+                    eventDescriptionInput.value = event.description;
+                    eventCategoryInput.value = event.category;
+                    eventTimeInput.value = event.time || '';
+                    eventDetailsInput.value = event.details || '';
+                    eventParticipantsInput.value = event.participants || '';
+                } else { // New event, only possible for admin
+                    modalTitle.textContent = 'Tambah Kegiatan Baru';
+                    eventIdInput.value = '';
+                }
+
+                // Show/hide admin buttons
+                eventForm.querySelector('button[type="submit"]').classList.toggle('hidden', !isAdmin);
+                deleteEventBtn.classList.toggle('hidden', !isAdmin || !event);
+
+                // Disable form fields for non-admins
+                const fieldsToDisable = eventForm.querySelectorAll('input, select, textarea');
+                fieldsToDisable.forEach(field => field.disabled = !isAdmin);
+
+                eventModal.classList.remove('hidden');
+                setTimeout(() => eventModalContent.classList.remove('scale-95', 'opacity-0'), 10);
+            }
+
+            function closeModal() {
+                eventModalContent.classList.add('scale-95', 'opacity-0');
+                setTimeout(() => eventModal.classList.add('hidden'), 200);
+            }
+
+            function openDailyEventsModal(dateString, allDailyEvents) {
+                const dateObj = new Date(dateString + 'T00:00:00');
+                dailyEventsTitle.textContent = dateObj.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+                dailyEventsList.innerHTML = '';
+                
+                // Store for copy functionality
+                sourceDateForCopy = dateString;
+                eventsToCopy = allDailyEvents;
+
+                allDailyEvents.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+
+                if (allDailyEvents.length > 0) {
+                    allDailyEvents.forEach(event => {
+                        const eventItem = document.createElement('div');
+                        eventItem.className = `kegiatan-${event.category} p-3 rounded-lg cursor-pointer hover:opacity-80 transition-opacity`;
+                        const timeDisplay = event.time ? `<div class="font-bold text-lg">${event.time}</div>` : '';
+                        const descriptionDisplay = `<div class="font-medium">${event.description}</div>`;
+                        let detailsDisplay = event.details ? `<div class="text-sm opacity-70 mt-1 whitespace-pre-wrap">${event.details}</div>` : '';
+                        let participantsDisplay = event.participants ? `<div class="text-sm opacity-90 mt-2"><strong class="font-semibold">Peserta:</strong> ${event.participants}</div>` : '';
+                        eventItem.innerHTML = timeDisplay + descriptionDisplay + detailsDisplay + participantsDisplay;
+                        eventItem.addEventListener('click', () => {
+                            closeDailyEventsModal();
+                            openModal(dateString, event);
+                        });
+                        dailyEventsList.appendChild(eventItem);
+                    });
+                } else {
+                    dailyEventsList.innerHTML = '<p class="text-gray-500 text-center py-4">Tidak ada kegiatan di hari ini.</p>';
+                }
+                
+                if (userRole === 'admin') {
+                    dailyAddEventBtn.classList.remove('hidden');
+                    if (allDailyEvents.length > 0) {
+                        copyAllBtn.classList.remove('hidden');
+                    } else {
+                        copyAllBtn.classList.add('hidden');
+                    }
+                } else {
+                    dailyAddEventBtn.classList.add('hidden');
+                    copyAllBtn.classList.add('hidden');
+                }
+
+                dailyAddEventBtn.onclick = () => {
+                    closeDailyEventsModal();
+                    openModal(dateString);
+                };
+
+                dailyEventsModal.classList.remove('hidden');
+                setTimeout(() => dailyModalContent.classList.remove('scale-95', 'opacity-0'), 10);
+            }
+            
+            function closeDailyEventsModal() {
+                dailyModalContent.classList.add('scale-95', 'opacity-0');
+                setTimeout(() => dailyEventsModal.classList.add('hidden'), 200);
+            }
+
+            // --- FUNGSI SALIN, SIMPAN & HAPUS ---
+            function handleCopyClick() {
+                if (userRole !== 'admin') return;
+                modalTitle.textContent = 'Salin Kegiatan';
+                eventIdInput.value = '';
+                copyEventBtn.classList.add('hidden');
+                deleteEventBtn.classList.add('hidden');
+            }
+
+            async function saveOrUpdateEvent(e) {
+                e.preventDefault();
+                if (userRole !== 'admin') return;
+
+                const originalDate = eventIdInput.dataset.originalDate;
+                const startDate = eventDateInput.value;
+                const description = eventDescriptionInput.value.trim();
+                const category = eventCategoryInput.value;
+                const time = eventTimeInput.value;
+                const details = eventDetailsInput.value.trim();
+                const participants = eventParticipantsInput.value.trim();
+                const eventId = eventIdInput.value;
+
+                if (!startDate || !description) return;
+                
+                if (eventId) { // We are updating an existing event
+                    deleteEventById(eventId, originalDate, false);
+                }
+
+                const newId = eventId ? parseInt(eventId) : Date.now();
+                const newEvent = { id: newId, description, category, time, details, participants };
+                if (!events[startDate]) events[startDate] = [];
+                events[startDate].push(newEvent);
+                
+                await saveDataToFirestore();
+                closeModal();
+                renderCalendar();
+            }
+            
+            async function handleDeleteClick() {
+                if (userRole !== 'admin') return;
+                const eventId = eventIdInput.value;
+                deleteEventById(eventId, eventIdInput.dataset.originalDate);
+                await saveDataToFirestore();
+                closeModal();
+                renderCalendar();
+            }
+
+            function deleteEventById(eventId, date) {
+                if (events[date]) {
+                    events[date] = events[date].filter(e => e.id !== parseInt(eventId));
+                    if (events[date].length === 0) delete events[date];
+                }
+            }
+
+            async function deleteAllMonthEvents(categoryToDelete) {
+                if (userRole !== 'admin') return;
+                const year = currentDate.getFullYear();
+                const month = currentDate.getMonth();
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+                for(let day = 1; day <= daysInMonth; day++) {
+                    const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    if (events[dateString]) {
+                        if (categoryToDelete === 'semua') {
+                            delete events[dateString];
+                        } else {
+                            events[dateString] = events[dateString].filter(e => e.category !== categoryToDelete);
+                            if (events[dateString].length === 0) {
+                                delete events[dateString];
+                            }
+                        }
+                    }
+                }
+                
+                await saveDataToFirestore();
+                renderCalendar();
+                deleteMonthConfirmModal.classList.add('hidden');
+            }
+
+            // --- FUNGSI UNTUK MODAL SALIN SEMUA ---
+            function openCopyDayModal() {
+                const dateObj = new Date(sourceDateForCopy + 'T00:00:00');
+                copySourceDateDisplay.textContent = dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+                copyDestDateInput.value = ''; // Clear previous value
+                copyDayModal.classList.remove('hidden');
+            }
+
+            function closeCopyDayModal() {
+                copyDayModal.classList.add('hidden');
+            }
+
+            async function handleSaveCopiedDay() {
+                const destinationDate = copyDestDateInput.value;
+                if (!destinationDate) {
+                    alert("Silakan pilih tanggal tujuan.");
+                    return;
+                }
+                 if (destinationDate === sourceDateForCopy) {
+                    alert("Tanggal tujuan tidak boleh sama dengan tanggal sumber.");
+                    return;
+                }
+
+                if (!events[destinationDate]) {
+                    events[destinationDate] = [];
+                }
+
+                eventsToCopy.forEach((event, index) => {
+                    const newEvent = JSON.parse(JSON.stringify(event));
+                    newEvent.id = Date.now() + index; // Ensure a unique new ID
+                    events[destinationDate].push(newEvent);
+                });
+
+                await saveDataToFirestore();
+                closeCopyDayModal();
+                closeDailyEventsModal();
+                renderCalendar();
+                alert(`Semua kegiatan berhasil disalin ke ${destinationDate}.`);
+            }
+            
+            // --- EVENT LISTENERS ---
+            prevMonthBtn.addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendar(); });
+            nextMonthBtn.addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendar(); });
+            addEventBtn.addEventListener('click', () => {
+                const today = new Date();
+                const yyyy = today.getFullYear();
+                const mm = String(today.getMonth() + 1).padStart(2, '0');
+                const dd = String(today.getDate()).padStart(2, '0');
+                openModal(`${yyyy}-${mm}-${dd}`);
+            });
+
+            categoryFilterDropdown.addEventListener('change', (e) => {
+                activeCategoryFilter = e.target.value;
+                renderCalendar();
+            });
+
+            closeModalBtn.addEventListener('click', closeModal);
+            eventModal.addEventListener('click', (e) => { if (e.target === eventModal) closeModal(); });
+            eventForm.addEventListener('submit', saveOrUpdateEvent);
+            deleteEventBtn.addEventListener('click', handleDeleteClick);
+            copyEventBtn.addEventListener('click', handleCopyClick);
+            
+            closeDailyModalBtn.addEventListener('click', closeDailyEventsModal);
+            dailyEventsModal.addEventListener('click', (e) => { if(e.target === dailyEventsModal) closeDailyEventsModal(); });
+            copyAllBtn.addEventListener('click', openCopyDayModal);
+            cancelCopyDayBtn.addEventListener('click', closeCopyDayModal);
+            saveCopyDayBtn.addEventListener('click', handleSaveCopiedDay);
+            
+            deleteMonthBtn.addEventListener('click', () => deleteMonthConfirmModal.classList.remove('hidden'));
+            cancelDeleteMonthBtn.addEventListener('click', () => deleteMonthConfirmModal.classList.add('hidden'));
+            deleteMonthCategoryOptions.addEventListener('click', (e) => {
+                if(e.target.tagName === 'BUTTON') {
+                    const category = e.target.dataset.category;
+                    deleteAllMonthEvents(category);
+                }
+            });
+            
+            printBtn.addEventListener('click', () => window.print());
+            exportBtn.addEventListener('click', exportDataToJson);
+            importFile.addEventListener('change', importDataFromJson);
+
+            // --- INISIALISASI ---
+            await loadDataFromFirestore();
+        }
+    </script>
+</body>
+</html>
